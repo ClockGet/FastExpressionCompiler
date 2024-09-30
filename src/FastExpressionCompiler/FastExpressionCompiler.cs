@@ -1895,6 +1895,42 @@ namespace FastExpressionCompiler
         [RequiresUnreferencedCode(Trimming.Message)]
         public static class EmittingVisitor
         {
+            private static MethodInfo? s_Decimal_op_Implicit_Byte;
+            public static MethodInfo Decimal_op_Implicit_Byte =>
+                s_Decimal_op_Implicit_Byte ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(byte) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_SByte;
+            public static MethodInfo Decimal_op_Implicit_SByte =>
+                s_Decimal_op_Implicit_SByte ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(sbyte) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_Int16;
+            public static MethodInfo Decimal_op_Implicit_Int16 =>
+                s_Decimal_op_Implicit_Int16 ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(short) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_UInt16;
+            public static MethodInfo Decimal_op_Implicit_UInt16 =>
+                s_Decimal_op_Implicit_UInt16 ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(ushort) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_Int32;
+            public static MethodInfo Decimal_op_Implicit_Int32 =>
+                s_Decimal_op_Implicit_Int32 ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(int) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_UInt32;
+            public static MethodInfo Decimal_op_Implicit_UInt32 =>
+                s_Decimal_op_Implicit_UInt32 ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(uint) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_Int64;
+            public static MethodInfo Decimal_op_Implicit_Int64 =>
+                s_Decimal_op_Implicit_Int64 ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(long) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_UInt64;
+            public static MethodInfo Decimal_op_Implicit_UInt64 =>
+                s_Decimal_op_Implicit_UInt64 ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(ulong) })!;
+
+            private static MethodInfo? s_Decimal_op_Implicit_Char;
+            public static MethodInfo Decimal_op_Implicit_Char =>
+                s_Decimal_op_Implicit_Char ??= typeof(decimal).GetMethod("op_Implicit", new[] { typeof(char) })!;
+
             // todo: @perf use UnsafeAccessAttribute
             private static readonly MethodInfo _getTypeFromHandleMethod =
                 ((Func<RuntimeTypeHandle, Type>)Type.GetTypeFromHandle).Method;
@@ -3086,7 +3122,7 @@ namespace FastExpressionCompiler
                     if (underlyingNullableSourceType == null)
                     {
                         if (!underlyingNullableTargetType.IsEnum && // todo: @clarify hope the source type is convertible to enum, huh 
-                            !TryEmitValueConvert(underlyingNullableTargetType, il, isChecked: false))
+                            !TryEmitValueConvert(sourceType, underlyingNullableTargetType, il, isChecked: false))
                             return false;
                         il.Demit(OpCodes.Newobj, targetType.GetTypeInfo().DeclaredConstructors.GetFirst());
                     }
@@ -3116,7 +3152,7 @@ namespace FastExpressionCompiler
                         }
                         else
                         {
-                            if (!TryEmitValueConvert(underlyingNullableTargetType, il, expr.NodeType == ExpressionType.ConvertChecked))
+                            if (!TryEmitValueConvert(underlyingNullableSourceType, underlyingNullableTargetType, il, expr.NodeType == ExpressionType.ConvertChecked))
                             {
                                 method ??= underlyingNullableTargetType.FindConvertOperator(underlyingNullableSourceType, underlyingNullableTargetType);
                                 if (method == null)
@@ -3145,7 +3181,7 @@ namespace FastExpressionCompiler
                     }
 
                     // cast as the last resort and let's it fail if unlucky
-                    if (!TryEmitValueConvert(targetType, il, expr.NodeType == ExpressionType.ConvertChecked))
+                    if (!TryEmitValueConvert(underlyingNullableSourceType ?? sourceType, targetType, il, expr.NodeType == ExpressionType.ConvertChecked))
                     {
                         il.TryEmitBoxOf(sourceType);
                         il.Demit(OpCodes.Castclass, targetType);
@@ -3155,30 +3191,178 @@ namespace FastExpressionCompiler
                 return il.EmitPopIfIgnoreResult(parent);
             }
 
-            private static bool TryEmitValueConvert(Type targetType, ILGenerator il, bool isChecked)
+            private static bool TryEmitValueConvert(Type sourceType, Type targetType, ILGenerator il, bool isChecked)
             {
-                if (targetType == typeof(int))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_I4 : OpCodes.Conv_I4);
-                else if (targetType == typeof(float))
-                    il.Demit(OpCodes.Conv_R4);
-                else if (targetType == typeof(uint))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_U4 : OpCodes.Conv_U4);
-                else if (targetType == typeof(sbyte))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_I1 : OpCodes.Conv_I1);
-                else if (targetType == typeof(byte))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_U1 : OpCodes.Conv_U1);
-                else if (targetType == typeof(short))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_I2 : OpCodes.Conv_I2);
-                else if (targetType == typeof(ushort) || targetType == typeof(char))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_U2 : OpCodes.Conv_U2);
-                else if (targetType == typeof(long))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_I8 : OpCodes.Conv_I8);
-                else if (targetType == typeof(ulong))
-                    il.Demit(isChecked ? OpCodes.Conv_Ovf_U8 : OpCodes.Conv_U8); // should we consider if sourceType.IsUnsigned == false and using the OpCodes.Conv_I8 (seems like the System.Compile does it)
-                else if (targetType == typeof(double))
-                    il.Demit(OpCodes.Conv_R8);
-                else
-                    return false;
+                TypeCode tc = Type.GetTypeCode(targetType);
+                TypeCode tf = Type.GetTypeCode(sourceType);
+
+                if (tc == tf)
+                {
+                    // Between enums of same underlying type, or between such an enum and the underlying type itself.
+                    // Includes bool-backed enums, which is the only valid conversion to or from bool.
+                    // Just leave the value on the stack, and treat it as the wanted type.
+                    return true;
+                }
+
+                bool isFromUnsigned = sourceType.IsUnsigned();
+                OpCode convCode;
+                switch (tc)
+                {
+                    case TypeCode.Single:
+                        if (isFromUnsigned)
+                            il.Emit(OpCodes.Conv_R_Un);
+                        convCode = OpCodes.Conv_R4;
+                        break;
+                    case TypeCode.Double:
+                        if (isFromUnsigned)
+                            il.Emit(OpCodes.Conv_R_Un);
+                        convCode = OpCodes.Conv_R8;
+                        break;
+                    case TypeCode.Decimal:
+
+                        // NB: TypeUtils.IsImplicitNumericConversion makes the promise that implicit conversions
+                        //     from various integral types and char to decimal are possible. Coalesce allows the
+                        //     conversion lambda to be omitted in these cases, so we have to handle this case in
+                        //     here as well, by using the op_Implicit operator implementation on System.Decimal
+                        //     because there are no opcodes for System.Decimal.
+
+                        Debug.Assert(sourceType != targetType);
+
+                        MethodInfo method = tf switch
+                        {
+                            TypeCode.Byte => Decimal_op_Implicit_Byte,
+                            TypeCode.SByte => Decimal_op_Implicit_SByte,
+                            TypeCode.Int16 => Decimal_op_Implicit_Int16,
+                            TypeCode.UInt16 => Decimal_op_Implicit_UInt16,
+                            TypeCode.Int32 => Decimal_op_Implicit_Int32,
+                            TypeCode.UInt32 => Decimal_op_Implicit_UInt32,
+                            TypeCode.Int64 => Decimal_op_Implicit_Int64,
+                            TypeCode.UInt64 => Decimal_op_Implicit_UInt64,
+                            TypeCode.Char => Decimal_op_Implicit_Char,
+                            _ => null,
+                        };
+                        if (method is null)
+                        {
+                            return false;
+                        }
+                        il.Emit(OpCodes.Call, method);
+                        return true;
+                    case TypeCode.SByte:
+                        if (isChecked)
+                        {
+                            convCode = isFromUnsigned ? OpCodes.Conv_Ovf_I1_Un : OpCodes.Conv_Ovf_I1;
+                        }
+                        else
+                        {
+                            convCode = OpCodes.Conv_I1;
+                        }
+
+                        break;
+                    case TypeCode.Byte:
+                        if (isChecked)
+                        {
+                            convCode = isFromUnsigned ? OpCodes.Conv_Ovf_U1_Un : OpCodes.Conv_Ovf_U1;
+                        }
+                        else
+                        {
+                            convCode = OpCodes.Conv_U1;
+                        }
+
+                        break;
+                    case TypeCode.Int16:
+                        switch (tf)
+                        {
+                            case TypeCode.SByte:
+                            case TypeCode.Byte:
+                                return true;
+                        }
+
+                        convCode = isChecked
+                            ? (isFromUnsigned ? OpCodes.Conv_Ovf_I2_Un : OpCodes.Conv_Ovf_I2)
+                            : OpCodes.Conv_I2;
+                        break;
+                    case TypeCode.Char:
+                    case TypeCode.UInt16:
+                        switch (tf)
+                        {
+                            case TypeCode.Byte:
+                            case TypeCode.Char:
+                            case TypeCode.UInt16:
+                                return true;
+                        }
+
+                        convCode = isChecked
+                            ? (isFromUnsigned ? OpCodes.Conv_Ovf_U2_Un : OpCodes.Conv_Ovf_U2)
+                            : OpCodes.Conv_U2;
+                        break;
+                    case TypeCode.Int32:
+                        switch (tf)
+                        {
+                            case TypeCode.Byte:
+                            case TypeCode.SByte:
+                            case TypeCode.Int16:
+                            case TypeCode.UInt16:
+                                return true;
+                            case TypeCode.UInt32:
+                                if (!isChecked)
+                                {
+                                    return true;
+                                }
+
+                                break;
+                        }
+
+                        convCode = isChecked
+                            ? (isFromUnsigned ? OpCodes.Conv_Ovf_I4_Un : OpCodes.Conv_Ovf_I4)
+                            : OpCodes.Conv_I4;
+                        break;
+                    case TypeCode.UInt32:
+                        switch (tf)
+                        {
+                            case TypeCode.Byte:
+                            case TypeCode.Char:
+                            case TypeCode.UInt16:
+                                return true;
+                            case TypeCode.SByte:
+                            case TypeCode.Int16:
+                            case TypeCode.Int32:
+                                if (!isChecked)
+                                {
+                                    return true;
+                                }
+
+                                break;
+                        }
+
+                        convCode = isChecked
+                            ? (isFromUnsigned ? OpCodes.Conv_Ovf_U4_Un : OpCodes.Conv_Ovf_U4)
+                            : OpCodes.Conv_U4;
+                        break;
+                    case TypeCode.Int64:
+                        if (!isChecked && tf == TypeCode.UInt64)
+                        {
+                            return true;
+                        }
+
+                        convCode = isChecked
+                            ? (isFromUnsigned ? OpCodes.Conv_Ovf_I8_Un : OpCodes.Conv_Ovf_I8)
+                            : (isFromUnsigned ? OpCodes.Conv_U8 : OpCodes.Conv_I8);
+                        break;
+                    case TypeCode.UInt64:
+                        if (!isChecked && tf == TypeCode.Int64)
+                        {
+                            return true;
+                        }
+
+                        convCode = isChecked
+                            ? (isFromUnsigned || tf.IsFloatingPoint() ? OpCodes.Conv_Ovf_U8_Un : OpCodes.Conv_Ovf_U8)
+                            : (isFromUnsigned || tf.IsFloatingPoint() ? OpCodes.Conv_U8 : OpCodes.Conv_I8);
+                        break;
+                    default:
+                        return false;
+                }
+
+                il.Emit(convCode);
                 return true;
             }
 
@@ -5979,10 +6163,36 @@ namespace FastExpressionCompiler
         }
 
         internal static bool IsUnsigned(this Type type) =>
-            type == typeof(byte) ||
-            type == typeof(ushort) ||
-            type == typeof(uint) ||
-            type == typeof(ulong);
+            IsUnsigned(Type.GetTypeCode(type));
+
+        internal static bool IsUnsigned(this TypeCode typeCode)
+        {
+            switch (typeCode)
+            {
+                case TypeCode.Byte:
+                case TypeCode.UInt16:
+                case TypeCode.Char:
+                case TypeCode.UInt32:
+                case TypeCode.UInt64:
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        internal static bool IsFloatingPoint(this TypeCode typeCode)
+        {
+            switch (typeCode) 
+            {
+                case TypeCode.Single:
+                case TypeCode.Double:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
 
         internal static bool IsPrimitiveWithZeroDefault(this Type type)
         {
