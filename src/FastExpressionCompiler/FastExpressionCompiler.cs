@@ -3009,7 +3009,7 @@ namespace FastExpressionCompiler
 #endif
                 ILGenerator il, ref ClosureInfo closure, CompilerFlags setup, ParentFlags parent)
             {
-                // todo: @perf! refactor this whole thing in order to handle the hot path without heavy reflection calls
+                // todo: @perf refactor this whole thing in order to handle the hot path without heavy reflection calls
                 var opExpr = expr.Operand;
                 var method = expr.Method;
                 if (method != null && method.Name != "op_Implicit" && method.Name != "op_Explicit")
