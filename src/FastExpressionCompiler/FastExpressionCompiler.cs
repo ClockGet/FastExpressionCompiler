@@ -6245,6 +6245,10 @@ namespace FastExpressionCompiler
         }
 
         [MethodImpl((MethodImplOptions)256)]
+        internal static bool IsFloatingPoint(this Type type) =>
+            IsFloatingPoint(Type.GetTypeCode(type));
+
+        [MethodImpl((MethodImplOptions)256)]
         internal static bool IsFloatingPoint(this TypeCode typeCode)
         {
             switch (typeCode) 
